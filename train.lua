@@ -17,21 +17,13 @@ local Trainer = torch.class('resnet.Trainer', M)
 function Trainer:__init(model, criterion, opt, optimState)
    self.model = model
    self.criterion = criterion
-   self.optimState = optimState or {
-      learningRate = opt.LR,
-      learningRateDecay = 0.0,
-      momentum = opt.momentum,
-      nesterov = true,
-      dampening = 0.0,
-      weightDecay = opt.weightDecay,
-   }
+   self.optimState = optimState or {}
    self.opt = opt
    self.params, self.gradParams = model:getParameters()
 end
 
 function Trainer:train(epoch, dataloader)
    -- Trains the model for a single epoch
-   self.optimState.learningRate = self:learningRate(epoch)
 
    local timer = torch.Timer()
    local dataTimer = torch.Timer()
@@ -60,7 +52,7 @@ function Trainer:train(epoch, dataloader)
       self.criterion:backward(self.model.output, self.target)
       self.model:backward(self.input, self.criterion.gradInput)
 
-      optim.sgd(feval, self.params, self.optimState)
+      optim.adadelta(feval, self.params, self.optimState)
 
       local top1, top5 = self:computeScore(output, sample.target, 1)
       top1Sum = top1Sum + top1
@@ -158,17 +150,6 @@ function Trainer:copyInputs(sample)
 
    self.input:resize(sample.input:size()):copy(sample.input)
    self.target:resize(sample.target:size()):copy(sample.target)
-end
-
-function Trainer:learningRate(epoch)
-   -- Training schedule
-   local decay = 0
-   if self.opt.dataset == 'imagenet' then
-      decay = math.floor((epoch - 1) / 30)
-   elseif self.opt.dataset == 'cifar10' then
-      decay = epoch >= 122 and 2 or epoch >= 81 and 1 or 0
-   end
-   return self.opt.LR * math.pow(0.1, decay)
 end
 
 return M.Trainer
